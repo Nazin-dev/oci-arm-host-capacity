@@ -1,0 +1,61 @@
+name: OCI ARM Provisioning
+
+on:
+  schedule:
+    # Roda a cada 5 minutos (limite mínimo do GitHub Actions)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Permite rodar manualmente
+
+jobs:
+  try-create-instance:
+    runs-on: ubuntu-latest
+    name: Tentar criar VM.Standard.A1.Flex
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Instalar PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, json, openssl
+
+      - name: Cache Composer
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Instalar dependências
+        run: composer install --prefer-dist --no-progress --no-dev
+
+      - name: Salvar chave privada OCI em arquivo
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Criar arquivo .env
+        run: |
+          cat > .env <<EOF
+          OCI_REGION=${{ secrets.OCI_REGION }}
+          OCI_USER_ID=${{ secrets.OCI_USER_ID }}
+          OCI_TENANCY_ID=${{ secrets.OCI_TENANCY_ID }}
+          OCI_KEY_FINGERPRINT=${{ secrets.OCI_KEY_FINGERPRINT }}
+          OCI_PRIVATE_KEY_FILENAME=$HOME/.oci/oci_api_key.pem
+          OCI_AVAILABILITY_DOMAIN=${{ secrets.OCI_AVAILABILITY_DOMAIN }}
+          OCI_SUBNET_ID=${{ secrets.OCI_SUBNET_ID }}
+          OCI_IMAGE_ID=${{ secrets.OCI_IMAGE_ID }}
+          OCI_OCPUS=${{ secrets.OCI_OCPUS }}
+          OCI_MEMORY_IN_GBS=${{ secrets.OCI_MEMORY_IN_GBS }}
+          OCI_SHAPE=VM.Standard.A1.Flex
+          OCI_MAX_INSTANCES=1
+          OCI_SSH_PUBLIC_KEY=${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          CACHE_AVAILABILITY_DOMAINS=1
+          TOO_MANY_REQUESTS_TIME_WAIT=300
+          EOF
+
+      - name: Executar script de criação
+        run: php index.php
+        timeout-minutes: 8

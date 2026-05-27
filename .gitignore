@@ -1,2 +1,5 @@
 vendor/
 .env
+api-keys/
+contexto-oracle-setup.md
+*.pem
